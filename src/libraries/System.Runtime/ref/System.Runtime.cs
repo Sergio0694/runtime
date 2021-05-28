@@ -9762,6 +9762,7 @@ namespace System.Runtime.CompilerServices
         public void Add(TKey key, TValue value) { }
         public void AddOrUpdate(TKey key, TValue value) { }
         public void Clear() { }
+        public System.Runtime.CompilerServices.ConditionalWeakTable<TKey, TValue>.Enumerator GetEnumerator() { throw null; }
         public TValue GetOrCreateValue(TKey key) { throw null; }
         public TValue GetValue(TKey key, System.Runtime.CompilerServices.ConditionalWeakTable<TKey, TValue>.CreateValueCallback createValueCallback) { throw null; }
         public bool Remove(TKey key) { throw null; }
@@ -9769,6 +9770,14 @@ namespace System.Runtime.CompilerServices
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() { throw null; }
         public bool TryGetValue(TKey key, [System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute(false)] out TValue value) { throw null; }
         public delegate TValue CreateValueCallback(TKey key);
+        public ref partial struct Enumerator
+        {
+            private object _dummy;
+            private int _dummyPrimitive;
+            public readonly System.Collections.Generic.KeyValuePair<TKey, TValue> Current { get { throw null; } }
+            public void Dispose() { }
+            public bool MoveNext() { throw null; }
+        }
     }
     public readonly partial struct ConfiguredAsyncDisposable
     {
