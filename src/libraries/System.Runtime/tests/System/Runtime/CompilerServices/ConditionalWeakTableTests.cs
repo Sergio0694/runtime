@@ -1,10 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
@@ -599,6 +597,284 @@ namespace System.Runtime.CompilerServices.Tests
 
             GC.KeepAlive(key1);
             GC.KeepAlive(value1);
+        }
+
+        [Fact]
+        public static void GetEnumerator_Struct_Default()
+        {
+            var enumerable = default(ConditionalWeakTable<object, object>.Enumerator);
+
+            try
+            {
+                Assert.False(enumerable.MoveNext());
+                Assert.Null(enumerable.Current.Key);
+                Assert.Null(enumerable.Current.Value);
+            }
+            finally
+            {
+                enumerable.Dispose();
+            }
+        }
+
+        [Fact]
+        public static void GetEnumerator_Struct_Empty_ReturnsEmptyEnumerator()
+        {
+            var cwt = new ConditionalWeakTable<object, object>();
+            var enumerable = cwt.GetEnumerator();
+
+            try
+            {
+                Assert.False(enumerable.MoveNext());
+                Assert.Null(enumerable.Current.Key);
+                Assert.Null(enumerable.Current.Value);
+            }
+            finally
+            {
+                enumerable.Dispose();
+            }
+        }
+
+        [Fact]
+        public static void GetEnumerator_Struct_AddedAndRemovedItems_AppropriatelyShowUpInEnumeration()
+        {
+            var cwt = new ConditionalWeakTable<object, object>();
+
+            object key1 = new object(), value1 = new object();
+
+            for (int i = 0; i < 20; i++)
+            {
+                cwt.Add(key1, value1);
+                Assert.Equal(1, CountWithStructEnumerator(cwt));
+                Assert.Equal(new KeyValuePair<object, object>(key1, value1), FirstWithStructEnumerator(cwt));
+
+                Assert.True(cwt.Remove(key1));
+                Assert.Equal(0, CountWithStructEnumerator(cwt));
+            }
+
+            GC.KeepAlive(key1);
+            GC.KeepAlive(value1);
+        }
+
+        [ConditionalFact(typeof(PlatformDetection), nameof(PlatformDetection.IsPreciseGcSupported))]
+        public static void GetEnumerator_Struct_CollectedItemsNotEnumerated()
+        {
+            var cwt = new ConditionalWeakTable<object, object>();
+
+            // Delegate to add collectible items to the table, separated out
+            // to avoid the JIT extending the lifetimes of the temporaries
+            Action<ConditionalWeakTable<object, object>> addItem =
+                t => t.Add(new object(), new object());
+
+            for (int i = 0; i < 10; i++) addItem(cwt);
+            GC.Collect();
+            Assert.Equal(0, CountWithStructEnumerator(cwt));
+        }
+
+        [Fact]
+        public static void GetEnumerator_Struct_MultipleEnumeratorsReturnSameResults()
+        {
+            var cwt = new ConditionalWeakTable<object, object>();
+
+            object[] keys = Enumerable.Range(0, 33).Select(_ => new object()).ToArray();
+            object[] values = Enumerable.Range(0, keys.Length).Select(_ => new object()).ToArray();
+            for (int i = 0; i < keys.Length; i++)
+            {
+                cwt.Add(keys[i], values[i]);
+            }
+
+            using (ConditionalWeakTable<object, object>.Enumerator enumerator1 = cwt.GetEnumerator())
+            using (ConditionalWeakTable<object, object>.Enumerator enumerator2 = cwt.GetEnumerator())
+            {
+                while (enumerator1.MoveNext())
+                {
+                    Assert.True(enumerator2.MoveNext());
+                    Assert.Equal(enumerator1.Current, enumerator2.Current);
+                }
+                Assert.False(enumerator2.MoveNext());
+            }
+
+            GC.KeepAlive(keys);
+            GC.KeepAlive(values);
+        }
+
+        [Fact]
+        public static void GetEnumerator_Struct_RemovedItems_RemovedFromResults()
+        {
+            var cwt = new ConditionalWeakTable<object, object>();
+
+            object[] keys = Enumerable.Range(0, 33).Select(_ => new object()).ToArray();
+            object[] values = Enumerable.Range(0, keys.Length).Select(_ => new object()).ToArray();
+            for (int i = 0; i < keys.Length; i++)
+            {
+                cwt.Add(keys[i], values[i]);
+            }
+
+            for (int i = 0; i < keys.Length; i++)
+            {
+                Assert.Equal(keys.Length - i, CountWithStructEnumerator(cwt));
+                Assert.Equal(
+                    Enumerable.Range(i, keys.Length - i).Select(j => new KeyValuePair<object, object>(keys[j], values[j])),
+                    ToEnumerableWithStructEnumerator(cwt));
+                cwt.Remove(keys[i]);
+            }
+            Assert.Equal(0, CountWithStructEnumerator(cwt));
+
+            GC.KeepAlive(keys);
+            GC.KeepAlive(values);
+        }
+
+        [Fact]
+        public static void GetEnumerator_Struct_ItemsAddedAfterGetEnumeratorNotIncluded()
+        {
+            var cwt = new ConditionalWeakTable<object, object>();
+
+            object key1 = new object(), key2 = new object(), value1 = new object(), value2 = new object();
+
+            cwt.Add(key1, value1);
+            ConditionalWeakTable<object, object>.Enumerator enumerator1 = cwt.GetEnumerator();
+            cwt.Add(key2, value2);
+            ConditionalWeakTable<object, object>.Enumerator enumerator2 = cwt.GetEnumerator();
+
+            Assert.True(enumerator1.MoveNext());
+            Assert.Equal(new KeyValuePair<object, object>(key1, value1), enumerator1.Current);
+            Assert.False(enumerator1.MoveNext());
+
+            Assert.True(enumerator2.MoveNext());
+            Assert.Equal(new KeyValuePair<object, object>(key1, value1), enumerator2.Current);
+            Assert.True(enumerator2.MoveNext());
+            Assert.Equal(new KeyValuePair<object, object>(key2, value2), enumerator2.Current);
+            Assert.False(enumerator2.MoveNext());
+
+            enumerator1.Dispose();
+            enumerator2.Dispose();
+
+            GC.KeepAlive(key1);
+            GC.KeepAlive(key2);
+            GC.KeepAlive(value1);
+            GC.KeepAlive(value2);
+        }
+
+        [Fact]
+        public static void GetEnumerator_Struct_ItemsRemovedAfterGetEnumeratorNotIncluded()
+        {
+            var cwt = new ConditionalWeakTable<object, object>();
+
+            object key1 = new object(), key2 = new object(), value1 = new object(), value2 = new object();
+
+            cwt.Add(key1, value1);
+            cwt.Add(key2, value2);
+            ConditionalWeakTable<object, object>.Enumerator enumerator1 = cwt.GetEnumerator();
+            cwt.Remove(key1);
+            ConditionalWeakTable<object, object>.Enumerator enumerator2 = cwt.GetEnumerator();
+
+            Assert.True(enumerator1.MoveNext());
+            Assert.Equal(new KeyValuePair<object, object>(key2, value2), enumerator1.Current);
+            Assert.False(enumerator1.MoveNext());
+
+            Assert.True(enumerator2.MoveNext());
+            Assert.Equal(new KeyValuePair<object, object>(key2, value2), enumerator2.Current);
+            Assert.False(enumerator2.MoveNext());
+
+            enumerator1.Dispose();
+            enumerator2.Dispose();
+
+            GC.KeepAlive(key1);
+            GC.KeepAlive(key2);
+            GC.KeepAlive(value1);
+            GC.KeepAlive(value2);
+        }
+
+        [Fact]
+        public static void GetEnumerator_Struct_ItemsClearedAfterGetEnumeratorNotIncluded()
+        {
+            var cwt = new ConditionalWeakTable<object, object>();
+
+            object key1 = new object(), key2 = new object(), value1 = new object(), value2 = new object();
+
+            cwt.Add(key1, value1);
+            cwt.Add(key2, value2);
+            ConditionalWeakTable<object, object>.Enumerator enumerator1 = cwt.GetEnumerator();
+            cwt.Clear();
+            ConditionalWeakTable<object, object>.Enumerator enumerator2 = cwt.GetEnumerator();
+
+            Assert.False(enumerator1.MoveNext());
+            Assert.False(enumerator2.MoveNext());
+
+            enumerator1.Dispose();
+            enumerator2.Dispose();
+
+            GC.KeepAlive(key1);
+            GC.KeepAlive(key2);
+            GC.KeepAlive(value1);
+            GC.KeepAlive(value2);
+        }
+
+        [Fact]
+        public static void GetEnumerator_Struct_Current_ThrowsOnInvalidUse()
+        {
+            var cwt = new ConditionalWeakTable<object, object>();
+
+            object key1 = new object(), value1 = new object();
+            cwt.Add(key1, value1);
+
+            using (ConditionalWeakTable<object, object>.Enumerator enumerator = cwt.GetEnumerator())
+            {
+                bool hasThrown = false;
+
+                try
+                {
+                    _ = enumerator.Current;
+                }
+                catch (InvalidOperationException)
+                {
+                    hasThrown = true;
+                }
+
+                Assert.True(hasThrown);
+            }
+
+            GC.KeepAlive(key1);
+            GC.KeepAlive(value1);
+        }
+
+        private static int CountWithStructEnumerator<TKey, TValue>(ConditionalWeakTable<TKey, TValue> table)
+            where TKey : class
+            where TValue : class
+        {
+            int count = 0;
+
+            foreach (var _ in table)
+            {
+                count++;
+            }
+
+            return count;
+        }
+
+        private static KeyValuePair<TKey, TValue> FirstWithStructEnumerator<TKey, TValue>(ConditionalWeakTable<TKey, TValue> table)
+            where TKey : class
+            where TValue : class
+        {
+            foreach (var pair in table)
+            {
+                return pair;
+            }
+
+            throw new InvalidOperationException("No elements");
+        }
+
+        private static IEnumerable<KeyValuePair<TKey, TValue>> ToEnumerableWithStructEnumerator<TKey, TValue>(ConditionalWeakTable<TKey, TValue> table)
+            where TKey : class
+            where TValue : class
+        {
+            var list = new List<KeyValuePair<TKey, TValue>>();
+
+            foreach (var pair in table)
+            {
+                list.Add(pair);
+            }
+
+            return list;
         }
     }
 }
