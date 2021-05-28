@@ -225,6 +225,30 @@ namespace System.Runtime.CompilerServices
 
         /// <summary>Gets an enumerator for the table.</summary>
         /// <remarks>
+        /// <para>
+        /// The returned enumerator will not extend the lifetime of any object pairs in the table, other than the one
+        /// that's <see cref="Enumerator.Current"/>. It will not return entries that have already been collected, nor
+        /// will it return entries added after the enumerator was retrieved. It may not return all entries that were
+        /// present when the enumerat was retrieved, however, such as not returning entries that were collected or
+        /// removed after the enumerator was retrieved but before they were enumerated.
+        /// </para>
+        /// <para>
+        /// See additional notes in the summary for <see cref="Enumerator"/> for more details on the
+        /// enumerator type and how to use it correctly to ensure that the state of the current
+        /// <see cref="ConditionalWeakTable{TKey, TValue}"/> instance remains consistent.
+        /// </para>
+        /// </remarks>
+        public Enumerator GetEnumerator()
+        {
+            lock (_lock)
+            {
+                Container c = _container;
+                return c is null || c.FirstFreeEntry == 0 ? default : new Enumerator(this);
+            }
+        }
+
+        /// <summary>Gets an enumerator for the table.</summary>
+        /// <remarks>
         /// The returned enumerator will not extend the lifetime of
         /// any object pairs in the table, other than the one that's Current.  It will not return entries
         /// that have already been collected, nor will it return entries added after the enumerator was
@@ -239,14 +263,113 @@ namespace System.Runtime.CompilerServices
                 Container c = _container;
                 return c is null || c.FirstFreeEntry == 0 ?
                     ((IEnumerable<KeyValuePair<TKey, TValue>>)Array.Empty<KeyValuePair<TKey, TValue>>()).GetEnumerator() :
-                    new Enumerator(this);
+                    new ReferenceTypeEnumerator(this);
             }
         }
 
         IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable<KeyValuePair<TKey, TValue>>)this).GetEnumerator();
 
         /// <summary>Provides an enumerator for the table.</summary>
-        private sealed class Enumerator : IEnumerator<KeyValuePair<TKey, TValue>>
+        /// <remarks>
+        /// This type is meant to be either immediately used with a <see langword="foreach"/> block, which will
+        /// automatically add the standard <see langword="try"/>/<see langword="catch"/> blocks and a call to
+        /// <see cref="Dispose"/> when the enumeration completes, or to be used very carefully to ensure that
+        /// the <see cref="Dispose"/> method is always called when the enumerator is no longer in use. Not doing
+        /// so will result in undefined behavior for the source <see cref="ConditionalWeakTable{TKey, TValue}"/>
+        /// instance from which the <see cref="Enumerator"/> instance was retrieved. In turn, this enumerator
+        /// provides allocation-free enumerator of key-value pairs currently available, which cannot be achieved
+        /// when instead using the <see cref="IEnumerator{T}"/> instance returned by <see cref="IEnumerable{T}.GetEnumerator"/>.
+        /// </remarks>
+        public ref struct Enumerator
+        {
+            // See comments in ReferenceTypeEnumerator below, the implementation is the same.
+            // This type is used as a slightly faster, allocation-free enumerator that can be used
+            // when the enumerator is immediately consumed by callers in a foreach block, and doesn't
+            // need to be a reference type that can also be passed around. This type doesn't have a
+            // finalizer as it can never be boxed, and it relies on the compiler generating the same
+            // try/finally blocks and Dispose() call as with a normal enumerator.
+
+            private ConditionalWeakTable<TKey, TValue>? _table;
+            private readonly int _maxIndexInclusive;
+            private int _currentIndex;
+            private KeyValuePair<TKey, TValue> _current;
+
+            internal Enumerator(ConditionalWeakTable<TKey, TValue> table)
+            {
+                Debug.Assert(table != null, "Must provide a valid table");
+                Debug.Assert(Monitor.IsEntered(table._lock), "Must hold the _lock lock to construct the enumerator");
+                Debug.Assert(table._container != null, "Should not be used on a finalized table");
+                Debug.Assert(table._container.FirstFreeEntry > 0, "Should have returned an empty enumerator instead");
+
+                _table = table;
+                Debug.Assert(table._activeEnumeratorRefCount >= 0, "Should never have a negative ref count before incrementing");
+                table._activeEnumeratorRefCount++;
+
+                _maxIndexInclusive = table._container.FirstFreeEntry - 1;
+                _currentIndex = -1;
+
+                Unsafe.SkipInit(out _current);
+            }
+
+            /// <inheritdoc cref="IDisposable.Dispose"/>
+            public void Dispose()
+            {
+                ConditionalWeakTable<TKey, TValue>? table = _table;
+                if (table != null)
+                {
+                    _current = default;
+
+                    lock (table._lock)
+                    {
+                        table._activeEnumeratorRefCount--;
+                        Debug.Assert(table._activeEnumeratorRefCount >= 0, "Should never have a negative ref count after decrementing");
+                    }
+                }
+            }
+
+            /// <inheritdoc cref="IEnumerator.MoveNext"/>
+            public bool MoveNext()
+            {
+                ConditionalWeakTable<TKey, TValue>? table = _table;
+                if (table != null)
+                {
+                    lock (table._lock)
+                    {
+                        Container c = table._container;
+                        if (c != null)
+                        {
+                            while (_currentIndex < _maxIndexInclusive)
+                            {
+                                _currentIndex++;
+                                if (c.TryGetEntry(_currentIndex, out TKey? key, out TValue? value))
+                                {
+                                    _current = new KeyValuePair<TKey, TValue>(key, value);
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            /// <inheritdoc cref="IEnumerator{T}.Current"/>
+            public readonly KeyValuePair<TKey, TValue> Current
+            {
+                get
+                {
+                    if (_currentIndex < 0)
+                    {
+                        ThrowHelper.ThrowInvalidOperationException_InvalidOperation_EnumOpCantHappen();
+                    }
+                    return _current;
+                }
+            }
+        }
+
+        /// <summary>Provides an enumerator for the table.</summary>
+        private sealed class ReferenceTypeEnumerator : IEnumerator<KeyValuePair<TKey, TValue>>
         {
             // The enumerator would ideally hold a reference to the Container and the end index within that
             // container.  However, the safety of the CWT depends on the only reference to the Container being
@@ -269,7 +392,7 @@ namespace System.Runtime.CompilerServices
             private int _currentIndex;                          // the current index into the container
             private KeyValuePair<TKey, TValue> _current;        // the current entry set by MoveNext and returned from Current
 
-            public Enumerator(ConditionalWeakTable<TKey, TValue> table)
+            public ReferenceTypeEnumerator(ConditionalWeakTable<TKey, TValue> table)
             {
                 Debug.Assert(table != null, "Must provide a valid table");
                 Debug.Assert(Monitor.IsEntered(table._lock), "Must hold the _lock lock to construct the enumerator");
@@ -286,7 +409,7 @@ namespace System.Runtime.CompilerServices
                 _currentIndex = -1;
             }
 
-            ~Enumerator()
+            ~ReferenceTypeEnumerator()
             {
                 Dispose();
             }
