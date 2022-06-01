@@ -463,9 +463,12 @@ namespace System.Runtime.CompilerServices
         [FieldOffset(ParentMethodTableOffset)]
         public MethodTable* ParentMethodTable;
 
+        // PTR_Module m_pLoaderModule;
+
+        [FieldOffset(WriteableDataOffset)]
+        public MethodTableWriteableData* m_pWriteableData;
+
         // Additional conditional fields (see methodtable.h).
-        // m_pLoaderModule
-        // m_pWriteableData
         // union {
         //   m_pEEClass (pointer to the EE class)
         //   m_pCanonMT (pointer to the canonical method table)
@@ -511,6 +514,12 @@ namespace System.Runtime.CompilerServices
             ;
 
         private const int ParentMethodTableOffset = 0x10 + DebugClassNamePtr;
+
+#if TARGET_64BIT
+        private const int WriteableDataOffset = 0x20 + DebugClassNamePtr;
+#else
+        private const int WriteableDataOffset = 0x18 + DebugClassNamePtr;
+#endif
 
 #if TARGET_64BIT
         private const int ElementTypeOffset = 0x30 + DebugClassNamePtr;
@@ -601,6 +610,16 @@ namespace System.Runtime.CompilerServices
 
         [MethodImpl(MethodImplOptions.InternalCall)]
         public extern uint GetNumInstanceFieldBytes();
+    }
+
+    internal struct MethodTableWriteableData
+    {
+        public int m_dwFlags;
+
+        /// <summary>
+        /// The <c>LoaderAllocator</c> slot index to a <c>RuntimeType</c> instance for this class (type <c>LOADERHANDLE</c>).
+        /// </summary>
+        public nint m_hExposedClassObject;
     }
 
     /// <summary>

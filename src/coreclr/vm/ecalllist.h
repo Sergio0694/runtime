@@ -61,7 +61,7 @@ FCFuncStart(gEnumFuncs)
 FCFuncEnd()
 
 FCFuncStart(gObjectFuncs)
-    FCFuncElement("GetType", ObjectNative::GetClass)
+    FCFuncElement("InternalGetType", ObjectNative::GetClass)
 FCFuncEnd()
 
 FCFuncStart(gStringFuncs)
