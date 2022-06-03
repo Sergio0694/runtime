@@ -172,8 +172,25 @@ namespace System.Runtime.CompilerServices
         [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "ReflectionSerialization_GetUninitializedObject")]
         private static partial void GetUninitializedObject(QCallTypeHandle type, ObjectHandleOnStack retObject);
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static unsafe object AllocateUninitializedClone(object obj)
+        {
+            // Called from object.MemberwiseClone, so that callvirt should NRE if obj is null already
+            Debug.Assert(obj is not null);
+
+            MethodTable* pMethodTable = GetMethodTable(obj);
+
+            object result = pMethodTable->IsArray
+                ? InternalAllocateUninitializedClone(obj)
+                : AllocateUninitializedObject(pMethodTable);
+
+            GC.KeepAlive(obj);
+
+            return result;
+        }
+
         [MethodImpl(MethodImplOptions.InternalCall)]
-        internal static extern object AllocateUninitializedClone(object obj);
+        internal static extern object InternalAllocateUninitializedClone(object obj);
 
         /// <returns>true if given type is reference type or value type that contains references</returns>
         [Intrinsic]
@@ -496,6 +513,7 @@ namespace System.Runtime.CompilerServices
         // WFLAGS_HIGH_ENUM
         private const uint enum_flag_ContainsPointers = 0x01000000;
         private const uint enum_flag_HasComponentSize = 0x80000000;
+        private const uint enum_flag_Category_Array_Mask = 0x000C0000;
         private const uint enum_flag_HasTypeEquivalence = 0x02000000;
         private const uint enum_flag_Category_ValueType = 0x00040000;
         private const uint enum_flag_Category_ValueType_Mask = 0x000C0000;
@@ -531,6 +549,18 @@ namespace System.Runtime.CompilerServices
 #else
         private const int InterfaceMapOffset = 0x24 + DebugClassNamePtr;
 #endif
+
+        /// <summary>
+        /// Gets whether or not the current instance represents an array type.
+        /// </summary>
+        /// <remarks>This property returns <see langword="false"/> for <see cref="Array"/>.</remarks>
+        public bool IsArray
+        {
+            get
+            {
+                return (Flags & enum_flag_Category_Array_Mask) == enum_flag_Category_Array_Mask;
+            }
+        }
 
         public bool HasComponentSize
         {

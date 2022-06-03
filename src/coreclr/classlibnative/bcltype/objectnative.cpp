@@ -224,9 +224,7 @@ FCIMPL1(Object*, ObjectNative::AllocateUninitializedClone, Object* pObjUNSAFE)
 {
     FCALL_CONTRACT;
 
-    // Delegate error handling to managed side (it will throw NullRefenceException)
-    if (pObjUNSAFE == NULL)
-        return NULL;
+    _ASSERTE(pObjUNSAFE != NULL);
 
     OBJECTREF refClone  = ObjectToOBJECTREF(pObjUNSAFE);
 
@@ -234,16 +232,13 @@ FCIMPL1(Object*, ObjectNative::AllocateUninitializedClone, Object* pObjUNSAFE)
 
     MethodTable* pMT = refClone->GetMethodTable();
 
-    // assert that String has overloaded the Clone() method
+    // Assert that String has overloaded the Clone() method
     _ASSERTE(pMT != g_pStringClass);
 
-    if (pMT->IsArray()) {
-        refClone = DupArrayForCloning((BASEARRAYREF)refClone);
-    } else {
-        // We don't need to call the <cinit> because we know
-        //  that it has been called....(It was called before this was created)
-        refClone = AllocateObject(pMT);
-    }
+    // This method is only called in the array case
+    _ASSERTE(pMT->IsArray());
+
+    refClone = DupArrayForCloning((BASEARRAYREF)refClone);
 
     HELPER_METHOD_FRAME_END();
 
