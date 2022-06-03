@@ -936,6 +936,24 @@ Done: ;
 }
 FCIMPLEND
 
+FCIMPL1(ArrayBase*, ArrayNative::AllocateUninitializedClone, ArrayBase* arrayRef)
+{
+    FCALL_CONTRACT;
+
+    _ASSERTE(arrayRef != NULL);
+
+    OBJECTREF refClone  = ObjectToOBJECTREF((Object*)arrayRef);
+
+    HELPER_METHOD_FRAME_BEGIN_RET_1(refClone);
+
+    refClone = DupArrayForCloning((BASEARRAYREF)refClone);
+
+    HELPER_METHOD_FRAME_END();
+
+    return (ArrayBase*)OBJECTREFToObject(refClone);
+}
+FCIMPLEND
+
 FCIMPL3(void, ArrayNative::SetValue, ArrayBase* refThisUNSAFE, Object* objUNSAFE, INT_PTR flattenedIndex)
 {
     FCALL_CONTRACT;

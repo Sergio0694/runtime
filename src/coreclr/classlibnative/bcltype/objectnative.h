@@ -31,7 +31,6 @@ public:
     static FCDECL1(Object*, GetObjectValue, Object* vThisRef);
     static FCDECL1(INT32, GetHashCode, Object* vThisRef);
     static FCDECL2(FC_BOOL_RET, Equals, Object *pThisRef, Object *pCompareRef);
-    static FCDECL1(Object*, AllocateUninitializedClone, Object* pObjUNSAFE);
     static FCDECL1(Object*, GetClass, Object* pThis);
     static FCDECL2(FC_BOOL_RET, WaitTimeout, INT32 Timeout, Object* pThisUNSAFE);
     static FCDECL1(void, Pulse, Object* pThisUNSAFE);

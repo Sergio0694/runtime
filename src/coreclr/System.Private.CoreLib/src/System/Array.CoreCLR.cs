@@ -18,6 +18,14 @@ namespace System
         [MethodImpl(MethodImplOptions.InternalCall)]
         private static extern unsafe Array InternalCreate(RuntimeType elementType, int rank, int* pLengths, int* pLowerBounds);
 
+        /// <summary>
+        /// Creates an uninitialized copy of the input <see cref="Array"/> instance.
+        /// </summary>
+        /// <param name="array">The input <see cref="Array"/> instance to clone.</param>
+        /// <returns>An uninitialized clone of <paramref name="array"/>.</returns>
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        internal static extern Array AllocateUninitializedClone(Array array);
+
         // Copies length elements from sourceArray, starting at index 0, to
         // destinationArray, starting at index 0.
         //

@@ -33,6 +33,7 @@ public:
     static FCDECL5(void, CopySlow, ArrayBase* pSrc, INT32 iSrcIndex, ArrayBase* pDst, INT32 iDstIndex, INT32 iLength);
 
     static FCDECL4(Object*, CreateInstance, ReflectClassBaseObject* pElementTypeUNSAFE, INT32 rank, INT32* pLengths, INT32* pBounds);
+    static FCDECL1(ArrayBase*, AllocateUninitializedClone, ArrayBase* arrayRef);
 
     // This set of methods will set a value in an array
     static FCDECL3(void, SetValue, ArrayBase* refThisUNSAFE, Object* objUNSAFE, INT_PTR flattenedIndex);

@@ -220,32 +220,6 @@ FCIMPL1(Object*, ObjectNative::GetClass, Object* pThis)
 }
 FCIMPLEND
 
-FCIMPL1(Object*, ObjectNative::AllocateUninitializedClone, Object* pObjUNSAFE)
-{
-    FCALL_CONTRACT;
-
-    _ASSERTE(pObjUNSAFE != NULL);
-
-    OBJECTREF refClone  = ObjectToOBJECTREF(pObjUNSAFE);
-
-    HELPER_METHOD_FRAME_BEGIN_RET_1(refClone);
-
-    MethodTable* pMT = refClone->GetMethodTable();
-
-    // Assert that String has overloaded the Clone() method
-    _ASSERTE(pMT != g_pStringClass);
-
-    // This method is only called in the array case
-    _ASSERTE(pMT->IsArray());
-
-    refClone = DupArrayForCloning((BASEARRAYREF)refClone);
-
-    HELPER_METHOD_FRAME_END();
-
-    return OBJECTREFToObject(refClone);
-}
-FCIMPLEND
-
 FCIMPL2(FC_BOOL_RET, ObjectNative::WaitTimeout, INT32 Timeout, Object* pThisUNSAFE)
 {
     FCALL_CONTRACT;

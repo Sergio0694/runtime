@@ -181,16 +181,13 @@ namespace System.Runtime.CompilerServices
             MethodTable* pMethodTable = GetMethodTable(obj);
 
             object result = pMethodTable->IsArray
-                ? InternalAllocateUninitializedClone(obj)
+                ? Array.AllocateUninitializedClone(Unsafe.As<Array>(obj))
                 : AllocateUninitializedObject(pMethodTable);
 
             GC.KeepAlive(obj);
 
             return result;
         }
-
-        [MethodImpl(MethodImplOptions.InternalCall)]
-        internal static extern object InternalAllocateUninitializedClone(object obj);
 
         /// <returns>true if given type is reference type or value type that contains references</returns>
         [Intrinsic]
