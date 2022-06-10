@@ -2036,6 +2036,13 @@ FCIMPL1(UINT32, MethodTableNative::GetNumInstanceFieldBytes, MethodTable* mt)
 }
 FCIMPLEND
 
+FCIMPL1(INT32, MethodTableNative::GetCorElementTypeFromEEClass, MethodTable* mt)
+{
+    FCALL_CONTRACT;
+    return mt->GetClass_NoLogging()->GetInternalCorElementType();
+}
+FCIMPLEND
+
 extern "C" BOOL QCALLTYPE MethodTable_AreTypesEquivalent(MethodTable* mta, MethodTable* mtb)
 {
     QCALL_CONTRACT;

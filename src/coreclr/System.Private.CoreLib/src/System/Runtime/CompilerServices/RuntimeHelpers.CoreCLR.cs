@@ -604,6 +604,13 @@ namespace System.Runtime.CompilerServices
 
         [MethodImpl(MethodImplOptions.InternalCall)]
         public extern uint GetNumInstanceFieldBytes();
+
+        /// <summary>
+        /// Gets the <see cref="CorElementType"/> from the EEClass for this <see cref="MethodTable"/> instance.
+        /// </summary>
+        /// <returns>The <see cref="CorElementType"/> for the current <see cref="MethodTable"/> instance.</returns>
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        private extern CorElementType GetCorElementTypeFromEEClass();
     }
 
     /// <summary>

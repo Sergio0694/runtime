@@ -602,6 +602,7 @@ FCFuncEnd()
 
 FCFuncStart(gMethodTableFuncs)
     FCFuncElement("GetNumInstanceFieldBytes", MethodTableNative::GetNumInstanceFieldBytes)
+    FCFuncElement("GetCorElementTypeFromEEClass", MethodTableNative::GetCorElementTypeFromEEClass)
 FCFuncEnd()
 
 FCFuncStart(gMngdFixedArrayMarshalerFuncs)
